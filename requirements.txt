@@ -135,3 +135,14 @@ wrapt==1.17.1
 xxhash==3.5.0
 yarl==1.18.3
 zipp==3.21.0
+pydantic-ai>=0.1.0
+openai>=1.0.0
+supabase>=2.0.0
+streamlit>=1.30.0
+python-dotenv>=1.0.0
+httpx>=0.25.0
+logfire>=0.8.0
+crawl4ai>=0.1.0
+requests>=2.31.0
+asyncio>=3.4.3
+typing-extensions>=4.8.0
