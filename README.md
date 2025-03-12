@@ -80,7 +80,7 @@ LLM_MODEL=gpt-4o-mini  # or your preferred OpenAI model
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
+gh repo clone aravpatel19/deepseek-agentic-rag
 cd deepseek-agentic-rag
 ```
 
@@ -288,9 +288,9 @@ If you use this project in your research or work, please cite:
 ```bibtex
 @software{deepseek_agentic_rag,
   title = {DeepSeek Agentic RAG},
-  author = {Your Name},
+  author = {Arav Patel},
   year = {2024},
   description = {A hallucination-free AI system for DeepSeek API documentation},
-  url = {https://github.com/your-username/deepseek-agentic-rag}
+  url = {https://github.com/aravpatel19/deepseek-agentic-rag}
 }
 ```
