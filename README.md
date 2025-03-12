@@ -1,6 +1,6 @@
 # DeepSeek Agentic RAG
 
-A hallucination-free AI system that automates extraction, validation, and natural language querying of DeepSeek's API documentation. By combining parallel web crawling (crawl4ai), vector storage (Supabase), and Pydantic AI's agentic capabilities, this system enables developers to interact with technical documentation conversationally while enforcing strict schema compliance to eliminate inaccuracies.
+A hallucination-free AI system that automates extraction, validation, and natural language querying of DeepSeek's API documentation. By combining parallel web crawling (crawl4ai), vector storage (PostgreSQL with pgvector), and Pydantic AI's agentic capabilities, this system enables developers to interact with technical documentation conversationally while enforcing strict schema compliance to eliminate inaccuracies.
 
 ## Overview
 
