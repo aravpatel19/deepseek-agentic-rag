@@ -1,3 +1,7 @@
+# Environment variables
+.env
+.env.*
+
 # Python
 __pycache__/
 *.py[cod]
@@ -16,23 +20,24 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Environment variables
-.env
-
 # Virtual Environment
 venv/
 ENV/
+rag_env/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
@@ -42,6 +47,3 @@ ENV/
 
 # Streamlit
 .streamlit/
-
-# Misc
-.DS_Store

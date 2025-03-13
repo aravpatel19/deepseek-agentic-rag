@@ -15,6 +15,12 @@ create table if not exists deepseek_pages (
     unique(url, chunk_number)
 );
 
+-- Create an index for better vector similarity search performance
+create index on deepseek_pages using ivfflat (embedding vector_cosine_ops);
+
+-- Create an index on metadata for faster filtering
+create index idx_deepseek_pages_metadata on deepseek_pages using gin (metadata);
+
 -- Create a function to match similar documents
 create or replace function match_deepseek_pages (
     query_embedding vector(1536),
@@ -51,35 +57,22 @@ begin
 end;
 $$;
 
--- Create an index for better vector similarity search performance
-create index on deepseek_pages using ivfflat (embedding vector_cosine_ops);
-
--- Create an index on metadata for faster filtering
-create index idx_deepseek_pages_metadata on deepseek_pages using gin (metadata);
-
--- Everything above will work for any PostgreSQL database. The below commands are for Supabase security
-
--- Enable RLS on the table
+-- Enable RLS
 alter table deepseek_pages enable row level security;
 
--- Create a policy that allows anyone to read
-create policy "Allow public read access"
-  on deepseek_pages
-  for select
-  to public
-  using (true);
+-- Create policies for access control
+create policy "Enable read access to all users"
+    on deepseek_pages for select
+    to public
+    using (true);
 
--- Create a policy that allows authenticated users to insert
-create policy "Allow authenticated insert"
-  on deepseek_pages
-  for insert
-  to authenticated
-  with check (true);
+create policy "Enable insert for authenticated users"
+    on deepseek_pages for insert
+    to authenticated
+    with check (true);
 
--- Create a policy that allows authenticated users to update
-create policy "Allow authenticated update"
-  on deepseek_pages
-  for update
-  to authenticated
-  using (true)
-  with check (true);
+create policy "Enable update for authenticated users"
+    on deepseek_pages for update
+    to authenticated
+    using (true)
+    with check (true); 

@@ -3,25 +3,63 @@ import sys
 import json
 import asyncio
 import requests
+import argparse
 from xml.etree import ElementTree
 from typing import List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+from pathlib import Path
 from dotenv import load_dotenv
 
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from openai import AsyncOpenAI
 from supabase import create_client, Client
 
-load_dotenv()
+# Get the directory containing the script
+script_dir = Path(__file__).resolve().parent
+
+# Load .env file from the same directory as the script
+env_path = script_dir / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Debug: Print where we're loading from
+print(f"Loading .env file from: {env_path}")
+print(f"SUPABASE_URL: {'[SET]' if os.getenv('SUPABASE_URL') else '[NOT SET]'}")
+print(f"SUPABASE_SERVICE_KEY: {'[SET]' if os.getenv('SUPABASE_SERVICE_KEY') else '[NOT SET]'}")
+
+# Initialize Supabase client with environment variables
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+if not supabase_url or not supabase_key:
+    raise ValueError(
+        "Missing Supabase credentials. Please ensure SUPABASE_URL and "
+        "SUPABASE_SERVICE_KEY are set in your .env file"
+    )
 
 # Initialize OpenAI and Supabase clients
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_KEY")
+    supabase_url,
+    supabase_key
 )
+
+# Debug: Check database connection and table existence
+try:
+    print("\nChecking database connection and tables...")
+    # Try to directly query the deepseek_pages table
+    test_query = supabase.table("deepseek_pages").select("id").limit(1).execute()
+    print("Successfully connected to deepseek_pages table")
+    
+    print("\nTesting table permissions...")
+    # Try a simple count query
+    count_query = supabase.table("deepseek_pages").select("*", count="exact").execute()
+    print(f"Current number of records in table: {count_query.count}")
+
+except Exception as e:
+    print(f"\nDatabase connection error: {str(e)}")
+    sys.exit(1)
 
 @dataclass
 class ProcessedChunk:
@@ -140,9 +178,24 @@ async def process_chunk(chunk: str, chunk_number: int, url: str) -> ProcessedChu
         embedding=embedding
     )
 
-async def insert_chunk(chunk: ProcessedChunk):
-    """Insert a processed chunk into Supabase."""
+async def insert_chunk(chunk: ProcessedChunk, update_existing: bool = False):
+    """Insert or update a processed chunk in Supabase."""
     try:
+        # First, check if the chunk already exists
+        print(f"\nChecking chunk existence for:")
+        print(f"URL: {chunk.url}")
+        print(f"Chunk number: {chunk.chunk_number}")
+        
+        existing = supabase.table("deepseek_pages")\
+            .select("*")\
+            .eq("url", chunk.url)\
+            .eq("chunk_number", chunk.chunk_number)\
+            .execute()
+        
+        print(f"Database response:")
+        print(f"Data: {existing.data}")
+        print(f"Count: {len(existing.data)}")
+        
         data = {
             "url": chunk.url,
             "chunk_number": chunk.chunk_number,
@@ -153,15 +206,35 @@ async def insert_chunk(chunk: ProcessedChunk):
             "embedding": chunk.embedding
         }
         
-        result = supabase.table("deepseek_pages").insert(data).execute()
-        print(f"Inserted chunk {chunk.chunk_number} for {chunk.url}")
+        if existing.data:
+            if update_existing:
+                print(f"Updating existing chunk...")
+                result = supabase.table("deepseek_pages")\
+                    .update(data)\
+                    .eq("url", chunk.url)\
+                    .eq("chunk_number", chunk.chunk_number)\
+                    .execute()
+                print(f"Update complete")
+            else:
+                print(f"Skipping existing chunk")
+                return None
+        else:
+            print(f"Inserting new chunk...")
+            result = supabase.table("deepseek_pages")\
+                .insert(data)\
+                .execute()
+            print(f"Insert complete")
+            
         return result
     
     except Exception as e:
-        print(f"Error inserting chunk: {e}")
+        print(f"\nError in database operation:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"For chunk: URL={chunk.url}, Number={chunk.chunk_number}")
         return None
 
-async def process_and_store_document(url: str, markdown: str):
+async def process_and_store_document(url: str, markdown: str, update_existing: bool = False):
     """Process a document and store its chunks in parallel."""
     # Split into chunks
     chunks = chunk_text(markdown)
@@ -175,12 +248,12 @@ async def process_and_store_document(url: str, markdown: str):
     
     # Store chunks in parallel
     insert_tasks = [
-        insert_chunk(chunk) 
+        insert_chunk(chunk, update_existing) 
         for chunk in processed_chunks
     ]
     await asyncio.gather(*insert_tasks)
 
-async def crawl_parallel(urls: List[str], max_concurrent: int = 5):
+async def crawl_parallel(urls: List[str], max_concurrent: int = 5, update_existing: bool = False):
     """Crawl multiple URLs in parallel with a concurrency limit."""
     browser_config = BrowserConfig(
         headless=True,
@@ -206,7 +279,7 @@ async def crawl_parallel(urls: List[str], max_concurrent: int = 5):
                 )
                 if result.success:
                     print(f"Successfully crawled: {url}")
-                    await process_and_store_document(url, result.markdown_v2.raw_markdown)
+                    await process_and_store_document(url, result.markdown_v2.raw_markdown, update_existing)
                 else:
                     print(f"Failed: {url} - Error: {result.error_message}")
         
@@ -236,14 +309,21 @@ def get_deepseek_docs_urls() -> List[str]:  # Renamed from get_pydantic_ai_docs_
         return []
 
 async def main():
+    parser = argparse.ArgumentParser(description='Crawl DeepSeek documentation')
+    parser.add_argument('--update-existing', action='store_true',
+                       help='Update existing documents instead of skipping')
+    parser.add_argument('--max-concurrent', type=int, default=5,
+                       help='Maximum number of concurrent crawls')
+    args = parser.parse_args()
+
     # Get URLs from DeepSeek docs
-    urls = get_deepseek_docs_urls()  # Changed function call
+    urls = get_deepseek_docs_urls()
     if not urls:
         print("No URLs found to crawl")
         return
     
     print(f"Found {len(urls)} URLs to crawl")
-    await crawl_parallel(urls)
+    await crawl_parallel(urls, max_concurrent=args.max_concurrent, update_existing=args.update_existing)
 
 if __name__ == "__main__":
     asyncio.run(main())

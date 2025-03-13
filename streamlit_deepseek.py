@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 import asyncio
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 import streamlit as st
 import json
@@ -24,15 +26,33 @@ from pydantic_ai.messages import (
 )
 from deepseek_agent import agentic_rag, DeepSeekDeps  # Changed import
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
+# Get the directory containing the script
+script_dir = Path(__file__).resolve().parent
 
-openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-supabase: Client = Client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_KEY")
-)
+# Load .env file from the same directory as the script
+env_path = script_dir / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Debug: Print where we're loading from
+print(f"Loading .env file from: {env_path}")
+print(f"SUPABASE_URL: {'[SET]' if os.getenv('SUPABASE_URL') else '[NOT SET]'}")
+print(f"SUPABASE_SERVICE_KEY: {'[SET]' if os.getenv('SUPABASE_SERVICE_KEY') else '[NOT SET]'}")
+print(f"OPENAI_API_KEY: {'[SET]' if os.getenv('OPENAI_API_KEY') else '[NOT SET]'}")
+
+# Initialize Supabase client with environment variables
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
+if not supabase_url or not supabase_key or not openai_api_key:
+    raise ValueError(
+        "Missing required credentials. Please ensure SUPABASE_URL, "
+        "SUPABASE_SERVICE_KEY, and OPENAI_API_KEY are set in your .env file"
+    )
+
+# Initialize the clients
+supabase = Client(supabase_url, supabase_key)
+openai_client = AsyncOpenAI(api_key=openai_api_key)
 
 # Configure logfire to suppress warnings (optional)
 logfire.configure(send_to_logfire='never')
