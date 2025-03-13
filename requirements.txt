@@ -8,3 +8,4 @@ pydantic-core>=2.0.0
 numpy
 pandas
 tiktoken
+logfire
